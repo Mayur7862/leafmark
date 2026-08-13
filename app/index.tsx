@@ -4,8 +4,9 @@ import { Alert, Pressable, StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { saveOriginalEpub } from '@/src/fs/books';
 
-async function pickEpub() {
+async function importEpub() {
   const result = await DocumentPicker.getDocumentAsync({
     type: 'application/epub+zip',
     copyToCacheDirectory: true,
@@ -15,8 +16,13 @@ async function pickEpub() {
     return;
   }
 
-  const file = result.assets[0];
-  Alert.alert('Picked', file.name);
+  try {
+    const file = result.assets[0];
+    const saved = saveOriginalEpub(file.uri);
+    Alert.alert('Saved original', `${file.name}\n${saved.originalPath}`);
+  } catch (error) {
+    Alert.alert('Import failed', error instanceof Error ? error.message : 'Could not save file');
+  }
 }
 
 export default function LibraryScreen() {
@@ -26,7 +32,7 @@ export default function LibraryScreen() {
     <ThemedView style={styles.container}>
       <ThemedText type="title">MReader</ThemedText>
       <ThemedText style={styles.body}>No books yet. App is running. and working great </ThemedText>
-      <Pressable style={[styles.button, { backgroundColor: tint }]} onPress={() => void pickEpub()}>
+      <Pressable style={[styles.button, { backgroundColor: tint }]} onPress={() => void importEpub()}>
         <ThemedText style={styles.buttonLabel} lightColor="#fff" darkColor="#11181C">
           Import
         </ThemedText>
