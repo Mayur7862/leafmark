@@ -1,8 +1,23 @@
+import * as DocumentPicker from 'expo-document-picker';
 import { Alert, Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
+
+async function pickEpub() {
+  const result = await DocumentPicker.getDocumentAsync({
+    type: 'application/epub+zip',
+    copyToCacheDirectory: true,
+  });
+
+  if (result.canceled) {
+    return;
+  }
+
+  const file = result.assets[0];
+  Alert.alert('Picked', file.name);
+}
 
 export default function LibraryScreen() {
   const tint = useThemeColor({}, 'tint');
@@ -11,9 +26,7 @@ export default function LibraryScreen() {
     <ThemedView style={styles.container}>
       <ThemedText type="title">MReader</ThemedText>
       <ThemedText style={styles.body}>No books yet. App is running. and working great </ThemedText>
-      <Pressable
-        style={[styles.button, { backgroundColor: tint }]}
-        onPress={() => Alert.alert('Import', 'Import not wired yet.')}>
+      <Pressable style={[styles.button, { backgroundColor: tint }]} onPress={() => void pickEpub()}>
         <ThemedText style={styles.buttonLabel} lightColor="#fff" darkColor="#11181C">
           Import
         </ThemedText>
