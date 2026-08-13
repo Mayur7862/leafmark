@@ -1,42 +1,62 @@
 import * as DocumentPicker from 'expo-document-picker';
-import { Alert, Pressable, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, FlatList, Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { saveOriginalEpub } from '@/src/fs/books';
-
-async function importEpub() {
-  const result = await DocumentPicker.getDocumentAsync({
-    type: 'application/epub+zip',
-    copyToCacheDirectory: true,
-  });
-
-  if (result.canceled) {
-    return;
-  }
-
-  try {
-    const file = result.assets[0];
-    const saved = saveOriginalEpub(file.uri);
-    Alert.alert('Saved original', `${file.name}\n${saved.originalPath}`);
-  } catch (error) {
-    Alert.alert('Import failed', error instanceof Error ? error.message : 'Could not save file');
-  }
-}
+import { listSavedBooks, saveOriginalEpub, type SavedBook } from '@/src/fs/books';
 
 export default function LibraryScreen() {
   const tint = useThemeColor({}, 'tint');
+  const [books, setBooks] = useState<SavedBook[]>([]);
+
+  const reloadBooks = useCallback(() => {
+    setBooks(listSavedBooks());
+  }, []);
+
+  useEffect(() => {
+    reloadBooks();
+  }, [reloadBooks]);
+
+  async function importEpub() {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'application/epub+zip',
+      copyToCacheDirectory: true,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    try {
+      const file = result.assets[0];
+      saveOriginalEpub(file.uri, file.name);
+      reloadBooks();
+    } catch (error) {
+      Alert.alert('Import failed', error instanceof Error ? error.message : 'Could not save file');
+    }
+  }
 
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">MReader</ThemedText>
-      <ThemedText style={styles.body}>No books yet. App is running. and working great </ThemedText>
       <Pressable style={[styles.button, { backgroundColor: tint }]} onPress={() => void importEpub()}>
         <ThemedText style={styles.buttonLabel} lightColor="#fff" darkColor="#11181C">
           Import
         </ThemedText>
       </Pressable>
+
+      <FlatList
+        data={books}
+        keyExtractor={(item) => item.bookId}
+        contentContainerStyle={styles.list}
+        ListEmptyComponent={<ThemedText style={styles.empty}>No books yet.</ThemedText>}
+        renderItem={({ item }) => (
+          <ThemedView style={styles.row}>
+            <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
+          </ThemedView>
+        )}
+      />
     </ThemedView>
   );
 }
@@ -44,22 +64,29 @@ export default function LibraryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    gap: 8,
-  },
-  body: {
-    marginTop: 8,
-    textAlign: 'center',
+    padding: 16,
   },
   button: {
-    marginTop: 16,
+    alignSelf: 'flex-start',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   buttonLabel: {
     fontWeight: '600',
+  },
+  list: {
+    paddingTop: 16,
+    gap: 8,
+    flexGrow: 1,
+  },
+  row: {
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  empty: {
+    marginTop: 32,
+    textAlign: 'center',
+    opacity: 0.7,
   },
 });
