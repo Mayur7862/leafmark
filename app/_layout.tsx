@@ -12,6 +12,7 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="index" options={{ title: 'Library' }} />
+        <Stack.Screen name="book/[id]" options={{ title: 'Book' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

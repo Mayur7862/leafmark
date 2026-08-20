@@ -1,4 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet } from 'react-native';
 
@@ -9,6 +10,7 @@ import { listSavedBooks, saveOriginalEpub, type SavedBook } from '@/src/fs/books
 
 export default function LibraryScreen() {
   const tint = useThemeColor({}, 'tint');
+  const router = useRouter();
   const [books, setBooks] = useState<SavedBook[]>([]);
 
   const reloadBooks = useCallback(() => {
@@ -52,9 +54,11 @@ export default function LibraryScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={<ThemedText style={styles.empty}>No books yet.</ThemedText>}
         renderItem={({ item }) => (
-          <ThemedView style={styles.row}>
-            <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
-          </ThemedView>
+          <Pressable onPress={() => router.push(`/book/${item.bookId}`)}>
+            <ThemedView style={styles.row}>
+              <ThemedText type="defaultSemiBold">{item.title}</ThemedText>
+            </ThemedView>
+          </Pressable>
         )}
       />
     </ThemedView>

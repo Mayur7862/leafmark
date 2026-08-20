@@ -5,6 +5,9 @@ import { createId } from '@/src/lib/id';
 export type SavedBook = {
   bookId: string;
   title: string;
+  originalName: string | null;
+  originalPath: string;
+  createdAt: string | null;
 };
 
 type BookMeta = {
@@ -64,6 +67,30 @@ export function saveOriginalEpub(
   return { bookId, originalPath: original.uri };
 }
 
+function bookFromDir(bookDir: Directory): SavedBook | null {
+  const original = new File(bookDir, 'original.epub');
+  if (!original.exists) {
+    return null;
+  }
+
+  const meta = readMeta(bookDir);
+  return {
+    bookId: bookDir.name,
+    title: meta ? titleFromName(meta.originalName) : 'Untitled book',
+    originalName: meta?.originalName ?? null,
+    originalPath: original.uri,
+    createdAt: meta?.createdAt ?? null,
+  };
+}
+
+export function getSavedBook(bookId: string): SavedBook | null {
+  const bookDir = new Directory(getBooksRoot(), bookId);
+  if (!bookDir.exists) {
+    return null;
+  }
+  return bookFromDir(bookDir);
+}
+
 export function listSavedBooks(): SavedBook[] {
   const booksRoot = getBooksRoot();
   if (!booksRoot.exists) {
@@ -75,11 +102,10 @@ export function listSavedBooks(): SavedBook[] {
     if (!(item instanceof Directory)) {
       continue;
     }
-    const meta = readMeta(item);
-    books.push({
-      bookId: item.name,
-      title: meta ? titleFromName(meta.originalName) : 'Untitled book',
-    });
+    const book = bookFromDir(item);
+    if (book) {
+      books.push(book);
+    }
   }
 
   return books.reverse();
