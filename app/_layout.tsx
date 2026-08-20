@@ -13,6 +13,7 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen name="index" options={{ title: 'Library' }} />
         <Stack.Screen name="book/[id]" options={{ title: 'Book' }} />
+        <Stack.Screen name="reader/[id]" options={{ title: 'Reader' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>
