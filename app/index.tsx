@@ -41,7 +41,7 @@ export default function LibraryScreen() {
   }
 
   function confirmClear() {
-    // TEMPORARY: debug Clear button — remove when wipe is no longer needed.
+    // TEMPORARY: debug Clear button — remove when wipe is no 
     Alert.alert('Clear all books', 'Delete every imported book from this app?', [
       { text: 'Cancel', style: 'cancel' },
       {
