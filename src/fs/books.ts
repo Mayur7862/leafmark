@@ -110,3 +110,11 @@ export function listSavedBooks(): SavedBook[] {
 
   return books.reverse();
 }
+
+export function clearAllBooks(): void {
+  // TEMPORARY: debug wipe for imported books (file storage, not a DB). Remove later.
+  const booksRoot = getBooksRoot();
+  if (booksRoot.exists) {
+    booksRoot.delete();
+  }
+}

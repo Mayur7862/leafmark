@@ -6,7 +6,7 @@ import { Alert, FlatList, Pressable, StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { listSavedBooks, saveOriginalEpub, type SavedBook } from '@/src/fs/books';
+import { clearAllBooks, listSavedBooks, saveOriginalEpub, type SavedBook } from '@/src/fs/books';
 
 export default function LibraryScreen() {
   const tint = useThemeColor({}, 'tint');
@@ -40,13 +40,35 @@ export default function LibraryScreen() {
     }
   }
 
+  function confirmClear() {
+    // TEMPORARY: debug Clear button — remove when wipe is no longer needed.
+    Alert.alert('Clear all books', 'Delete every imported book from this app?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: () => {
+          clearAllBooks();
+          reloadBooks();
+        },
+      },
+    ]);
+  }
+
   return (
     <ThemedView style={styles.container}>
-      <Pressable style={[styles.button, { backgroundColor: tint }]} onPress={() => void importEpub()}>
-        <ThemedText style={styles.buttonLabel} lightColor="#fff" darkColor="#11181C">
-          Import
-        </ThemedText>
-      </Pressable>
+      <ThemedView style={styles.actions}>
+        <Pressable style={[styles.button, { backgroundColor: tint }]} onPress={() => void importEpub()}>
+          <ThemedText style={styles.buttonLabel} lightColor="#fff" darkColor="#11181C">
+            Import
+          </ThemedText>
+        </Pressable>
+        <Pressable style={[styles.button, styles.clearButton]} onPress={confirmClear}>
+          <ThemedText style={styles.buttonLabel} lightColor="#fff" darkColor="#fff">
+            Clear
+          </ThemedText>
+        </Pressable>
+      </ThemedView>
 
       <FlatList
         data={books}
@@ -70,11 +92,17 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  actions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   button: {
-    alignSelf: 'flex-start',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
+  },
+  clearButton: {
+    backgroundColor: '#b42318',
   },
   buttonLabel: {
     fontWeight: '600',
