@@ -6,19 +6,25 @@ import { Alert, FlatList, Pressable, StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { clearAllBooks, listSavedBooks, saveOriginalEpub, type SavedBook } from '@/src/fs/books';
+import {
+  clearAllBooks,
+  describeLibraryLocation,
+  listSavedBooks,
+  saveOriginalEpub,
+  type SavedBook,
+} from '@/src/fs/books';
 
 export default function LibraryScreen() {
   const tint = useThemeColor({}, 'tint');
   const router = useRouter();
   const [books, setBooks] = useState<SavedBook[]>([]);
 
-  const reloadBooks = useCallback(() => {
-    setBooks(listSavedBooks());
+  const reloadBooks = useCallback(async () => {
+    setBooks(await listSavedBooks());
   }, []);
 
   useEffect(() => {
-    reloadBooks();
+    void reloadBooks();
   }, [reloadBooks]);
 
   async function importEpub() {
@@ -33,23 +39,25 @@ export default function LibraryScreen() {
 
     try {
       const file = result.assets[0];
-      saveOriginalEpub(file.uri, file.name);
-      reloadBooks();
+      await saveOriginalEpub(file.uri, file.name);
+      await reloadBooks();
     } catch (error) {
       Alert.alert('Import failed', error instanceof Error ? error.message : 'Could not save file');
     }
   }
 
   function confirmClear() {
-    // TEMPORARY: debug Clear button — remove when wipe is no 
+    // TEMPORARY: debug Clear button — remove when wipe is no longer needed.
     Alert.alert('Clear all books', 'Delete every imported book from this app?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Clear',
         style: 'destructive',
         onPress: () => {
-          clearAllBooks();
-          reloadBooks();
+          void (async () => {
+            await clearAllBooks();
+            await reloadBooks();
+          })();
         },
       },
     ]);
@@ -69,6 +77,8 @@ export default function LibraryScreen() {
           </ThemedText>
         </Pressable>
       </ThemedView>
+
+      <ThemedText style={styles.hint}>Stored in {describeLibraryLocation()}</ThemedText>
 
       <FlatList
         data={books}
@@ -106,6 +116,11 @@ const styles = StyleSheet.create({
   },
   buttonLabel: {
     fontWeight: '600',
+  },
+  hint: {
+    marginTop: 10,
+    opacity: 0.6,
+    fontSize: 13,
   },
   list: {
     paddingTop: 16,

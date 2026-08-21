@@ -1,6 +1,14 @@
-import { Directory, File, Paths } from 'expo-file-system';
-
 import { createId } from '@/src/lib/id';
+import {
+  copyEpubToOriginals,
+  deleteUriIfPossible,
+  ensureLibraryFolders,
+  getSavedLibraryFolders,
+  readBytesFromUri,
+  readTextUri,
+  writeTextUri,
+  type LibraryFolders,
+} from '@/src/fs/libraryRoot';
 
 export type SavedBook = {
   bookId: string;
@@ -10,111 +18,106 @@ export type SavedBook = {
   createdAt: string | null;
 };
 
-type BookMeta = {
-  originalName: string;
-  createdAt: string;
+type LibraryIndex = {
+  books: SavedBook[];
 };
-
-export function getBooksRoot(): Directory {
-  return new Directory(Paths.document, 'books');
-}
 
 function titleFromName(originalName: string): string {
   return originalName.replace(/\.epub$/i, '') || originalName;
 }
 
-function writeMeta(bookDir: Directory, originalName: string): void {
-  const meta = new File(bookDir, 'meta.json');
-  if (!meta.exists) {
-    meta.create();
-  }
-  const data: BookMeta = {
-    originalName,
-    createdAt: new Date().toISOString(),
-  };
-  meta.write(JSON.stringify(data));
+function safeStorageBaseName(bookId: string, originalName: string): string {
+  const base = originalName
+    .replace(/\.epub$/i, '')
+    .replace(/[^a-zA-Z0-9._ -]+/g, '_')
+    .trim()
+    .slice(0, 60);
+  return `${bookId}__${base || 'book'}`;
 }
 
-function readMeta(bookDir: Directory): BookMeta | null {
-  const meta = new File(bookDir, 'meta.json');
-  if (!meta.exists) {
-    return null;
+async function loadIndexFromFolders(folders: LibraryFolders): Promise<LibraryIndex> {
+  const raw = await readTextUri(folders.libraryJsonUri);
+  if (!raw) {
+    return { books: [] };
   }
   try {
-    return JSON.parse(meta.textSync()) as BookMeta;
+    const parsed = JSON.parse(raw) as LibraryIndex;
+    return { books: Array.isArray(parsed.books) ? parsed.books : [] };
   } catch {
-    return null;
+    return { books: [] };
   }
 }
 
-export function saveOriginalEpub(
+async function writeIndex(folders: LibraryFolders, index: LibraryIndex): Promise<void> {
+  await writeTextUri(folders.libraryJsonUri, JSON.stringify(index, null, 2));
+}
+
+/** Saves the untouched original EPUB into mreader/original_epubs. */
+export async function saveOriginalEpub(
   sourceUri: string,
   originalName: string
-): { bookId: string; originalPath: string } {
-  const booksRoot = getBooksRoot();
-  if (!booksRoot.exists) {
-    booksRoot.create({ intermediates: true, idempotent: true });
-  }
-
+): Promise<{ bookId: string; originalPath: string }> {
+  // Shows setup alert + folder picker on Android if not configured yet.
+  const folders = await ensureLibraryFolders();
+  const index = await loadIndexFromFolders(folders);
   const bookId = createId();
-  const bookDir = new Directory(booksRoot, bookId);
-  bookDir.create({ intermediates: true, idempotent: true });
+  const originalPath = await copyEpubToOriginals(
+    folders.originalsUri,
+    sourceUri,
+    safeStorageBaseName(bookId, originalName)
+  );
 
-  const original = new File(bookDir, 'original.epub');
-  new File(sourceUri).copy(original);
-  writeMeta(bookDir, originalName);
-
-  return { bookId, originalPath: original.uri };
-}
-
-function bookFromDir(bookDir: Directory): SavedBook | null {
-  const original = new File(bookDir, 'original.epub');
-  if (!original.exists) {
-    return null;
-  }
-
-  const meta = readMeta(bookDir);
-  return {
-    bookId: bookDir.name,
-    title: meta ? titleFromName(meta.originalName) : 'Untitled book',
-    originalName: meta?.originalName ?? null,
-    originalPath: original.uri,
-    createdAt: meta?.createdAt ?? null,
+  const book: SavedBook = {
+    bookId,
+    title: titleFromName(originalName),
+    originalName,
+    originalPath,
+    createdAt: new Date().toISOString(),
   };
+
+  index.books.unshift(book);
+  await writeIndex(folders, index);
+
+  return { bookId, originalPath };
 }
 
-export function getSavedBook(bookId: string): SavedBook | null {
-  const bookDir = new Directory(getBooksRoot(), bookId);
-  if (!bookDir.exists) {
-    return null;
-  }
-  return bookFromDir(bookDir);
-}
-
-export function listSavedBooks(): SavedBook[] {
-  const booksRoot = getBooksRoot();
-  if (!booksRoot.exists) {
+export async function listSavedBooks(): Promise<SavedBook[]> {
+  const folders = await getSavedLibraryFolders();
+  if (!folders) {
     return [];
   }
-
-  const books: SavedBook[] = [];
-  for (const item of booksRoot.list()) {
-    if (!(item instanceof Directory)) {
-      continue;
-    }
-    const book = bookFromDir(item);
-    if (book) {
-      books.push(book);
-    }
-  }
-
-  return books.reverse();
+  const index = await loadIndexFromFolders(folders);
+  return index.books;
 }
 
-export function clearAllBooks(): void {
-  // TEMPORARY: debug wipe for imported books (file storage, not a DB). Remove later.
-  const booksRoot = getBooksRoot();
-  if (booksRoot.exists) {
-    booksRoot.delete();
+export async function getSavedBook(bookId: string): Promise<SavedBook | null> {
+  const folders = await getSavedLibraryFolders();
+  if (!folders) {
+    return null;
   }
+  const index = await loadIndexFromFolders(folders);
+  return index.books.find((book) => book.bookId === bookId) ?? null;
+}
+
+export async function readBookBytes(bookId: string): Promise<Uint8Array> {
+  const book = await getSavedBook(bookId);
+  if (!book) {
+    throw new Error('Book not found.');
+  }
+  return readBytesFromUri(book.originalPath);
+}
+
+/** TEMPORARY: wipe library index + original EPUB files. */
+export async function clearAllBooks(): Promise<void> {
+  const folders = await getSavedLibraryFolders();
+  if (!folders) {
+    return;
+  }
+  const index = await loadIndexFromFolders(folders);
+  await Promise.all(index.books.map((book) => deleteUriIfPossible(book.originalPath)));
+  await writeIndex(folders, { books: [] });
+}
+
+export function describeLibraryLocation(): string {
+  return 'mreader/original_epubs';
 }

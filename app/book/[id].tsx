@@ -1,16 +1,46 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { getSavedBook } from '@/src/fs/books';
+import { getSavedBook, type SavedBook } from '@/src/fs/books';
 
 export default function BookDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const tint = useThemeColor({}, 'tint');
-  const book = typeof id === 'string' ? getSavedBook(id) : null;
+  const [book, setBook] = useState<SavedBook | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (typeof id !== 'string') {
+        setBook(null);
+        setLoading(false);
+        return;
+      }
+      const next = await getSavedBook(id);
+      if (!cancelled) {
+        setBook(next);
+        setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <ThemedView style={styles.centered}>
+        <ActivityIndicator />
+      </ThemedView>
+    );
+  }
 
   if (!book) {
     return (
@@ -47,6 +77,11 @@ export default function BookDetailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     padding: 16,

@@ -1,12 +1,11 @@
-import { File } from 'expo-file-system';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { getSavedBook } from '@/src/fs/books';
+import { getSavedBook, readBookBytes } from '@/src/fs/books';
 import {
   InkEngine,
   DEFAULT_READER_SETTINGS,
@@ -24,8 +23,7 @@ export default function ReaderScreen() {
   const navigation = useNavigation();
   const tint = useThemeColor({}, 'tint');
 
-  const libraryBook = useMemo(() => (bookId ? getSavedBook(bookId) : null), [bookId]);
-
+  const [libraryTitle, setLibraryTitle] = useState<string | null>(null);
   const [inkBook, setInkBook] = useState<InkBook | null>(null);
   const [sectionIndex, setSectionIndex] = useState(0);
   const [fragment, setFragment] = useState<string | null>(null);
@@ -46,20 +44,18 @@ export default function ReaderScreen() {
         return;
       }
 
-      const saved = getSavedBook(bookId);
-      if (!saved) {
-        setError('Book not found.');
-        setLoading(false);
-        return;
-      }
-
       setLoading(true);
       setError(null);
 
       try {
-        const bytes = await new File(saved.originalPath).bytes();
+        const saved = await getSavedBook(bookId);
+        if (!saved) {
+          throw new Error('Book not found.');
+        }
+        const bytes = await readBookBytes(bookId);
         const book = await InkEngine.load(bytes);
         if (!cancelled) {
+          setLibraryTitle(saved.title);
           setInkBook(book);
           setSectionIndex(0);
           setFragment(null);
@@ -133,14 +129,14 @@ export default function ReaderScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      title: libraryBook?.title ?? inkBook?.metadata.title ?? 'Reader',
+      title: libraryTitle ?? inkBook?.metadata.title ?? 'Reader',
       headerRight: () => (
         <Pressable onPress={() => setTocOpen(true)} style={{ paddingHorizontal: 12 }}>
           <ThemedText style={{ color: tint, fontWeight: '600' }}>TOC</ThemedText>
         </Pressable>
       ),
     });
-  }, [navigation, libraryBook?.title, inkBook?.metadata.title, tint]);
+  }, [navigation, libraryTitle, inkBook?.metadata.title, tint]);
 
   const goNext = useCallback(() => {
     if (!inkBook || !spineItem) {
